@@ -1,872 +1,437 @@
-\# Terraform AWS Infrastructure Automation \& Deployment
+# Terraform AWS Infrastructure Automation & Deployment
 
+**Automating AWS Cloud Infrastructure with Terraform (Infrastructure as Code)**
 
+Build • Provision • Automate • Deploy
 
-\### Automating AWS Cloud Infrastructure Using Terraform (Infrastructure as Code)
+---
 
+## 1. Project Overview
 
+This project demonstrates the automated provisioning and deployment of AWS infrastructure using **Terraform**.
 
-<p align="center">
+It provisions a custom Virtual Private Cloud (VPC), configures public networking, deploys an Ubuntu 24.04 LTS EC2 instance, and automatically installs an Nginx web server using a Bash user-data script.
 
-&#x20; <strong>Build • Provision • Automate • Deploy</strong>
+The project also demonstrates reusable Terraform modules, remote state management with Amazon S3, native state locking, and automated configuration validation using GitHub Actions.
 
-</p>
+### Project Objectives
 
+- Automate AWS infrastructure provisioning using Terraform.
+- Design and configure a custom VPC and public subnet.
+- Configure Internet Gateway, route table and subnet association.
+- Implement security groups for HTTP access.
+- Deploy and configure an Ubuntu EC2 instance.
+- Automate Nginx installation and website deployment.
+- Implement reusable Terraform modules.
+- Configure Amazon S3 remote state and native state locking.
+- Integrate GitHub Actions for Terraform validation.
 
+---
 
-\---
+## 2. AWS Infrastructure Architecture
 
+The following architecture illustrates the AWS infrastructure and the deployment workflow.
 
-
-\## 1. Project Overview
-
-
-
-This project demonstrates how to design, provision and deploy AWS cloud infrastructure using \*\*Terraform (Infrastructure as Code)\*\*.
-
-
-
-Instead of manually creating AWS resources through the AWS Management Console, Terraform is used to automate the infrastructure provisioning process through reusable configuration files.
-
-
-
-The project creates a custom AWS network, provisions an Ubuntu EC2 instance, configures networking and security, and automatically installs an Nginx web server using a Bash user-data script.
-
-
-
-It also demonstrates Terraform modules and remote state management using Amazon S3 with native state locking.
-
-
-
-\### Project Objectives
-
-
-
-\- Automate AWS infrastructure provisioning using Terraform.
-
-\- Build a custom Virtual Private Cloud (VPC).
-
-\- Configure public networking and internet connectivity.
-
-\- Deploy an Ubuntu 24.04 EC2 instance.
-
-\- Install and configure Nginx automatically.
-
-\- Organize infrastructure using reusable Terraform modules.
-
-\- Manage Terraform state remotely using Amazon S3.
-
-
-
-\---
-
-\## 2. AWS Infrastructure Architecture
-
-
-
-The following architecture illustrates how Terraform provisions AWS resources, how internet traffic reaches the Nginx web server, and how Terraform state is managed remotely using Amazon S3.
-
-
-
-\### Architecture Diagram
-
-
+### Architecture Diagram
 
 ```mermaid
-
 flowchart TB
+    USERS(["Internet Users"])
 
-&#x20;   USER(\["Internet Users"])
+    subgraph AWS["AWS Cloud - ap-south-1"]
+        subgraph VPC["VPC - 10.0.0.0/16"]
+            IGW["Internet Gateway"]
 
+            RT["Public Route Table<br/>0.0.0.0/0 → IGW"]
 
+            ASSOC["Route Table Association"]
 
-&#x20;   subgraph AWS\["AMAZON WEB SERVICES"]
+            subgraph SUBNET["Public Subnet - 10.0.1.0/24"]
+                EC2["EC2 Instance<br/>Ubuntu 24.04 LTS"]
+                NGINX["Nginx Web Server<br/>Custom Website"]
+            end
 
-&#x20;       subgraph VPC\["Virtual Private Cloud - 10.0.0.0/16"]
+            SG["Security Group<br/>Inbound HTTP TCP 80"]
 
-&#x20;           IGW\["Internet Gateway"]
+            IGW --> RT
+            RT --> ASSOC
+            ASSOC --> SUBNET
+            SG -. "Attached to" .-> EC2
+            EC2 --> NGINX
+        end
 
-&#x20;           RT\["Public Route Table"]
+        S3[("Amazon S3<br/>Remote Terraform State")]
+    end
 
-&#x20;           SUBNET\["Public Subnet - 10.0.1.0/24"]
+    TF["Terraform CLI<br/>Infrastructure as Code"]
+    MODULE["Reusable EC2 Module"]
+    SCRIPT["Bash User Data<br/>Nginx Installation"]
 
-&#x20;           SG\["Security Group - HTTP Port 80"]
+    USERS --> IGW
+    USERS -. "HTTP traffic" .-> SG
 
-&#x20;           EC2\["EC2 Instance - Ubuntu 24.04 LTS"]
+    TF --> VPC
+    TF <--> S3
+    TF --> MODULE
+    MODULE --> EC2
+    SCRIPT --> EC2
 
-&#x20;           NGINX\["Nginx Web Server - Custom Website"]
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef terraform fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
+    classDef network fill:#d1fae5,stroke:#059669,color:#064e3b
+    classDef compute fill:#ffedd5,stroke:#ea580c,color:#9a3412
+    classDef storage fill:#fce7f3,stroke:#db2777,color:#831843
 
-
-
-&#x20;           IGW --- RT
-
-&#x20;           RT --> SUBNET
-
-&#x20;           SUBNET --> SG
-
-&#x20;           SG --> EC2
-
-&#x20;           EC2 --> NGINX
-
-&#x20;       end
-
-
-
-&#x20;       S3\[("Amazon S3 - Remote Terraform State")]
-
-&#x20;   end
-
-
-
-&#x20;   TF\["Terraform - Infrastructure as Code"]
-
-&#x20;   MODULE\["Reusable EC2 Module"]
-
-&#x20;   SCRIPT\["Bash User Data - Nginx Installation"]
-
-
-
-&#x20;   USER --> IGW
-
-&#x20;   TF --> VPC
-
-&#x20;   TF --> S3
-
-&#x20;   TF --> MODULE
-
-&#x20;   MODULE --> EC2
-
-&#x20;   SCRIPT --> EC2
-
-
-
-&#x20;   classDef user fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-
-&#x20;   classDef terraform fill:#ede9fe,stroke:#7c3aed,color:#4c1d95
-
-&#x20;   classDef network fill:#d1fae5,stroke:#059669,color:#064e3b
-
-&#x20;   classDef compute fill:#ffedd5,stroke:#ea580c,color:#9a3412
-
-&#x20;   classDef storage fill:#fce7f3,stroke:#db2777,color:#831843
-
-
-
-&#x20;   class USER user
-
-&#x20;   class TF,MODULE,SCRIPT terraform
-
-&#x20;   class IGW,RT,SUBNET,SG network
-
-&#x20;   class EC2,NGINX compute
-
-&#x20;   class S3 storage
-
+    class USERS user
+    class TF,MODULE,SCRIPT terraform
+    class IGW,RT,ASSOC,SG network
+    class EC2,NGINX compute
+    class S3 storage
 ```
 
+### Architecture Components
 
-
-\### Architecture Explanation
-
-
-
-1\. \*\*Internet Users:\*\* Access the deployed website through a web browser using the EC2 public IP address.
-
-2\. \*\*Internet Gateway:\*\* Enables communication between the VPC and the internet.
-
-3\. \*\*Public Route Table:\*\* Routes internet-bound traffic through the Internet Gateway.
-
-4\. \*\*Public Subnet:\*\* Hosts the EC2 instance and provides public network connectivity.
-
-5\. \*\*Security Group:\*\* Allows inbound HTTP traffic on port 80.
-
-6\. \*\*Amazon EC2:\*\* Runs the Ubuntu 24.04 LTS operating system.
-
-7\. \*\*Nginx Web Server:\*\* Serves the custom-designed website.
-
-8\. \*\*Terraform:\*\* Automates AWS infrastructure provisioning through Infrastructure as Code.
-
-9\. \*\*Reusable EC2 Module:\*\* Organizes EC2 configuration into reusable Terraform components.
-
-10\. \*\*Bash User Data:\*\* Automatically installs and configures Nginx during instance initialization.
-
-11\. \*\*Amazon S3:\*\* Stores Terraform state remotely and supports native state locking.
-
-
-
-\### Infrastructure Workflow
-
-
-
-\*\*Terraform Configuration → AWS Resource Provisioning → EC2 Initialization → Nginx Installation → Website Deployment → Browser Access\*\*
-
-
-
-
-
-\## 3. AWS Resources Created
-
-
-
-| AWS Resource | Description |
-
+| Component | Purpose |
 |---|---|
-
-| Amazon VPC | Creates an isolated virtual network |
-
-| Public Subnet | Hosts the EC2 instance |
-
+| Amazon VPC | Provides an isolated virtual network |
 | Internet Gateway | Enables internet connectivity |
-
-| Route Table | Controls network traffic routing |
-
-| Route Table Association | Connects the subnet to the public route table |
-
-| Security Group | Controls inbound and outbound traffic |
-
-| Amazon EC2 | Provides virtual compute infrastructure |
-
-| Amazon EBS | Provides encrypted root storage |
-
+| Public Subnet | Hosts the EC2 instance |
+| Public Route Table | Routes internet-bound traffic through the IGW |
+| Route Table Association | Associates the route table with the subnet |
+| Security Group | Allows inbound HTTP traffic on TCP port 80 |
+| Amazon EC2 | Runs Ubuntu 24.04 LTS |
+| Nginx | Hosts and serves the custom website |
 | Amazon S3 | Stores Terraform remote state |
+| Terraform Module | Provides reusable EC2 configuration |
+| Bash User Data | Automates Nginx installation and configuration |
 
+### Deployment Workflow
 
+**Terraform Configuration → AWS Networking → Security Configuration → EC2 Provisioning → Nginx Installation → Website Deployment → Browser Access**
 
-\*\*Important:\*\* The project uses a public subnet and public IP for this HTTP demonstration. It does not configure public SSH access or a NAT Gateway.
+---
 
-
-
-\---
-
-
-
-\## 4. Technology Stack
-
-
+## 3. Technology Stack
 
 | Technology | Purpose |
-
 |---|---|
-
-| Amazon Web Services | Cloud infrastructure platform |
-
+| Amazon Web Services | Cloud infrastructure |
 | Terraform | Infrastructure as Code |
-
 | HCL | Terraform configuration language |
-
-| Amazon EC2 | Virtual machine |
-
-| Amazon VPC | Network isolation |
-
-| Ubuntu 24.04 LTS | Operating system |
-
+| Amazon VPC | Network infrastructure |
+| Amazon EC2 | Virtual compute |
+| Ubuntu 24.04 LTS | Server operating system |
 | Nginx | Web server |
-
 | Amazon S3 | Remote Terraform state |
-
-| Bash | Automated server configuration |
-
-| Git \& GitHub | Version control and project hosting |
-
+| Bash | Server initialization |
+| Git & GitHub | Version control |
+| GitHub Actions | Automated Terraform validation |
 | AWS CLI | AWS command-line management |
 
+---
 
-
-\---
-
-
-
-\## 5. Project Directory Structure
-
-
-
-The project is organized into separate Terraform configuration files and a reusable EC2 module.
-
-
+## 4. Project Directory Structure
 
 ```text
-
 terraform-aws-infrastructure-automation/
-
 │
-
 ├── .github/
-
 │   └── workflows/
-
+│       └── terraform-validation.yml
 │
-
 ├── modules/
-
 │   └── ec2/
-
 │       ├── main.tf
-
 │       ├── variables.tf
-
 │       └── outputs.tf
-
 │
-
-├── backend.tf
-
-├── main.tf
-
-├── provider.tf
-
-├── variables.tf
-
-├── outputs.tf
-
-├── versions.tf
-
-├── terraform.tfvars.example
-
-├── user\_data.sh
-
 ├── .gitignore
-
 ├── .terraform.lock.hcl
-
+├── backend.tf
+├── main.tf
+├── outputs.tf
+├── provider.tf
+├── terraform.tfvars.example
+├── user_data.sh
+├── variables.tf
+├── versions.tf
 └── README.md
-
 ```
 
-
-
-\### File Responsibilities
-
-
+### File Responsibilities
 
 | File | Responsibility |
-
 |---|---|
-
-| `main.tf` | Defines AWS networking and calls the EC2 module |
-
+| `main.tf` | Defines AWS networking and module configuration |
 | `provider.tf` | Configures the AWS provider |
-
-| `variables.tf` | Defines configurable input variables |
-
-| `outputs.tf` | Displays infrastructure information |
-
+| `variables.tf` | Declares input variables |
+| `outputs.tf` | Exposes infrastructure outputs |
 | `versions.tf` | Defines Terraform and provider version constraints |
+| `backend.tf` | Configures the S3 backend |
+| `user_data.sh` | Installs and configures Nginx |
+| `terraform.tfvars.example` | Provides sample variable values |
+| `modules/ec2/` | Contains reusable EC2 resources |
+| `.terraform.lock.hcl` | Locks provider selections |
+| `.gitignore` | Excludes local and sensitive files |
+| `.github/workflows/` | Contains GitHub Actions automation |
 
-| `backend.tf` | Configures the S3 remote backend |
+**Security:** The actual `terraform.tfvars`, state files, plan files and `.terraform/` directory are intentionally excluded from Git.
 
-| `user\_data.sh` | Installs and configures Nginx automatically |
+---
 
-| `terraform.tfvars.example` | Provides example variable values |
+## 5. Prerequisites
 
-| `modules/ec2/` | Contains reusable EC2 infrastructure configuration |
+Before deploying the project, prepare:
 
-| `.terraform.lock.hcl` | Locks selected provider versions |
+- An AWS account.
+- Terraform CLI installed.
+- AWS CLI installed and configured.
+- Git installed.
+- An IAM identity with the required AWS permissions.
+- An existing Amazon S3 bucket for remote state.
 
-| `.gitignore` | Excludes state, plans and sensitive local files |
+### S3 Backend Preparation
 
+Before running Terraform initialization:
 
+1. Create an S3 bucket in your chosen AWS region.
+2. Enable bucket versioning.
+3. Enable server-side encryption.
+4. Enable all S3 Block Public Access settings.
+5. Ensure your IAM identity has the required state and lock-file permissions.
 
-\---
+The backend bucket must exist before Terraform initializes the S3 backend.
 
+---
 
+## 6. Deployment Instructions
 
-\## 6. How the Deployment Works
+### Step 1 — Clone the Repository
 
-
-
-The infrastructure deployment follows these steps:
-
-
-
-\*\*Step 1 — Terraform Initialization\*\*
-
-
-
-Terraform downloads the required AWS provider and initializes the configured backend.
-
-
-
-\*\*Step 2 — AWS Networking\*\*
-
-
-
-Terraform provisions the VPC, public subnet, Internet Gateway, route table and route table association.
-
-
-
-\*\*Step 3 — Security Configuration\*\*
-
-
-
-A security group is created to allow HTTP access on port 80.
-
-
-
-\*\*Step 4 — EC2 Provisioning\*\*
-
-
-
-A reusable EC2 module provisions an Ubuntu 24.04 virtual machine in the public subnet.
-
-
-
-\*\*Step 5 — Automated Web Server Installation\*\*
-
-
-
-The `user\_data.sh` script executes during EC2 initialization and installs Nginx.
-
-
-
-\*\*Step 6 — Website Deployment\*\*
-
-
-
-Nginx serves the custom HTML website.
-
-
-
-\*\*Step 7 — Terraform Outputs\*\*
-
-
-
-Terraform displays the EC2 instance ID, public IP, VPC ID and website URL.
-
-
-
-\---
-
-
-
-\## 7. Prerequisites
-
-
-
-Before deploying this project, ensure you have:
-
-
-
-\- An AWS account.
-
-\- Terraform CLI installed.
-
-\- AWS CLI installed and configured.
-
-\- An IAM identity with the required AWS permissions.
-
-\- Git installed.
-
-\- An existing S3 bucket for the Terraform backend.
-
-
-
-The S3 bucket must be created before initializing this project. Enable bucket versioning, encryption and Block Public Access.
-
-
-
-\---
-
-
-
-\## 8. Deployment Instructions
-
-
-
-\### Step 1 — Clone the Repository
-
-
-
-```bash
-
+```powershell
 git clone https://github.com/Gnaneshambati1/terraform-aws-infrastructure-automation.git
 
 cd terraform-aws-infrastructure-automation
-
 ```
 
+### Step 2 — Configure AWS Credentials
 
+Configure AWS CLI credentials or another supported AWS authentication method.
 
-\### Step 2 — Configure AWS Credentials
+Do not store AWS access keys or secret keys in Terraform files or GitHub.
 
+### Step 3 — Configure the S3 Backend
 
+Open `backend.tf`.
 
-Configure an AWS CLI profile with the required permissions.
+Replace the example bucket name, state key and region with your own S3 backend configuration.
 
+Do not initialize the project using another person's S3 bucket.
 
+### Step 4 — Configure Variables
 
-Do not place AWS access keys or secret keys inside Terraform configuration files or GitHub.
-
-
-
-\### Step 3 — Configure the Remote Backend
-
-
-
-Open `backend.tf` and configure the name of your own existing S3 bucket, state key and AWS region.
-
-
-
-The example backend configuration in this project is specific to its original deployment. You must use a bucket that you own before initializing your copy.
-
-
-
-\### Step 4 — Configure Variables
-
-
-
-Create your local Terraform variable file from the example:
-
-
+Create your local variable file:
 
 ```powershell
-
 Copy-Item terraform.tfvars.example terraform.tfvars
-
 ```
 
+Update the values according to your AWS deployment requirements.
 
+### Step 5 — Initialize Terraform
 
-Update the region, VPC CIDR and subnet CIDR values as required.
-
-
-
-\### Step 5 — Initialize Terraform
-
-
-
-```bash
-
+```powershell
 terraform init
-
 ```
 
+### Step 6 — Format and Validate
 
-
-\### Step 6 — Format and Validate
-
-
-
-```bash
-
+```powershell
 terraform fmt -recursive
 
 terraform validate
-
 ```
 
+### Step 7 — Review the Deployment Plan
 
-
-\### Step 7 — Review the Infrastructure Plan
-
-
-
-```bash
-
+```powershell
 terraform plan
-
 ```
 
+Review the proposed infrastructure changes before deployment.
 
+### Step 8 — Deploy AWS Infrastructure
 
-Review the proposed resources before deployment.
-
-
-
-\### Step 8 — Deploy AWS Infrastructure
-
-
-
-```bash
-
+```powershell
 terraform apply
-
 ```
-
-
 
 Review the plan and approve the deployment when prompted.
 
+### Step 9 — Retrieve Outputs
 
-
-\### Step 9 — Retrieve Deployment Information
-
-
-
-```bash
-
+```powershell
 terraform output
-
 ```
-
-
 
 Retrieve the website URL:
 
-
-
-```bash
-
-terraform output web\_server\_url
-
+```powershell
+terraform output -raw web_server_url
 ```
 
-
-
-Open the returned HTTP URL in a browser to access the Nginx website.
-
-
+Open the returned URL in your browser to access the deployed Nginx website.
 
 Allow a few minutes for EC2 initialization and Nginx installation.
 
+---
 
+## 7. Terraform State Management
 
-\---
+This project uses an Amazon S3 remote backend to store Terraform state.
 
+### Implemented Features
 
+- Remote state storage using Amazon S3.
+- Backend encryption enabled.
+- Native S3 state locking using `use_lockfile = true`.
+- S3 bucket versioning recommended for state recovery.
+- Local state backups maintained separately.
+- Terraform state files excluded from GitHub.
 
-\## 9. Terraform State Management
+### Useful Terraform Commands
 
-
-
-Terraform state keeps track of the infrastructure managed by Terraform.
-
-
-
-This project uses an Amazon S3 remote backend instead of storing the primary state file in the project directory.
-
-
-
-\### State Management Features
-
-
-
-\- Remote state storage in Amazon S3.
-
-\- Server-side encryption configured in the backend.
-
-\- Native S3 state locking using `use\_lockfile = true`.
-
-\- State versioning recommended on the S3 bucket.
-
-\- Local state backups maintained separately.
-
-\- State files excluded from GitHub.
-
-
-
-\### Useful State Commands
-
-
-
-```bash
-
+```powershell
 terraform state list
 
-terraform state show module.web\_server.aws\_instance.this
+terraform state show module.web_server.aws_instance.this
 
 terraform state pull
-
 ```
 
+**Important:** Terraform state can contain sensitive infrastructure information. Never commit state files or backups to a public repository.
 
+---
 
-\*\*Security Note:\*\* Terraform state may contain sensitive infrastructure information. Never publish state files or state backups in a public repository.
+## 8. GitHub Actions — Terraform Validation
 
+This repository includes a GitHub Actions workflow:
 
+`.github/workflows/terraform-validation.yml`
 
-\---
+### Automated Checks
 
+The workflow performs:
 
+1. Repository checkout.
+2. Terraform CLI setup.
+3. Terraform formatting verification.
+4. Terraform initialization without accessing the remote backend.
+5. Terraform configuration validation.
 
-\## 10. Security Best Practices
+The workflow runs on pushes to the `main` branch and pull requests.
 
+**Note:** This workflow validates Terraform configuration. It does not deploy or destroy AWS infrastructure.
 
+---
+
+## 9. Security Best Practices
 
 Security measures implemented in this project include:
 
+- Dedicated IAM identity for Terraform operations.
+- No hardcoded AWS credentials.
+- No public SSH ingress rule.
+- HTTP access limited to TCP port 80.
+- EC2 Instance Metadata Service Version 2 (IMDSv2) required.
+- Encrypted EC2 root EBS volume.
+- Terraform state stored remotely in Amazon S3.
+- State files and local variable files excluded from Git.
 
+### Production Recommendations
 
-\- Dedicated IAM identity for Terraform operations.
+For production workloads, consider:
 
-\- No hardcoded AWS credentials.
+- HTTPS using SSL/TLS certificates.
+- Restricting public access wherever possible.
+- Private subnets for application servers.
+- Least-privilege IAM policies.
+- Centralized monitoring and logging.
+- Secure administrative access through AWS Systems Manager.
 
-\- No public SSH ingress rule.
+---
 
-\- HTTP ingress restricted to the required web port.
+## 10. Cost Considerations
 
-\- EC2 Instance Metadata Service Version 2 (IMDSv2) required.
-
-\- Encrypted EC2 root EBS volume.
-
-\- Terraform state stored remotely in S3.
-
-\- Terraform state, plans and local variable files excluded from Git.
-
-
-
-\*\*Production improvement:\*\* For production workloads, configure HTTPS, restrict public access where possible, apply least-privilege IAM policies, and implement appropriate monitoring and logging.
-
-
-
-\---
-
-
-
-\## 11. Cost Considerations
-
-
-
-AWS infrastructure can incur charges depending on the selected region, resource configuration and usage.
-
-
+AWS resources may incur charges depending on region, configuration and usage.
 
 Potential charges include:
 
+- EC2 instance usage.
+- EBS storage.
+- Public IPv4 address usage.
+- Amazon S3 storage and requests.
 
+Review AWS pricing before deployment. Back up Terraform state and inspect the destroy plan before removing infrastructure.
 
-\- EC2 instance usage.
+---
 
-\- EBS storage.
+## 11. Project Screenshots
 
-\- Public IPv4 address usage.
-
-\- S3 storage and requests.
-
-
-
-Review AWS pricing before deploying. Back up Terraform state before destroying infrastructure.
-
-
-
-\---
-
-
-
-\## 12. Project Screenshots
-
-
-
-Screenshots will be added to this section to demonstrate the actual deployment.
-
-
+Screenshots will be added after final deployment verification.
 
 Recommended screenshots:
 
-
-
-1\. AWS infrastructure resources.
-
-2\. Terraform initialization and successful deployment.
-
-3\. EC2 instance running in AWS.
-
-4\. Custom Nginx website in a browser.
-
-5\. Terraform outputs showing infrastructure details.
-
-
-
-\---
-
-
-
-\## 13. Skills Demonstrated
-
-
-
-Through this project, I gained practical experience with:
-
-
-
-\- Infrastructure as Code (IaC).
-
-\- AWS infrastructure provisioning.
-
-\- VPC and public networking.
-
-\- EC2 deployment and configuration.
-
-\- Terraform modules and variables.
-
-\- Terraform remote state and state locking.
-
-\- Automated Linux server configuration.
-
-\- Nginx web server deployment.
-
-\- Git and GitHub project management.
-
-\- Infrastructure security and troubleshooting.
-
-
-
-\---
-
-
-
-\## 14. Future Enhancements
-
-
-
-Potential improvements for future versions:
-
-
-
-\- HTTPS configuration using SSL/TLS.
-
-\- Application Load Balancer.
-
-\- Auto Scaling Group.
-
-\- Private subnet architecture.
-
-\- CloudWatch monitoring and alerts.
-
-\- CI/CD automation using GitHub Actions.
-
-\- Multi-environment deployments using Terraform workspaces.
-
-
-
-\---
-
-
-
-\## Project Information
-
-
-
-\*\*Project Name:\*\* Terraform AWS Infrastructure Automation \& Deployment
-
-
-
-\*\*Cloud Platform:\*\* Amazon Web Services
-
-
-
-\*\*Infrastructure as Code:\*\* Terraform
-
-
-
-\*\*Operating System:\*\* Ubuntu 24.04 LTS
-
-
-
-\*\*Web Server:\*\* Nginx
-
-
-
-\*\*Deployment Region:\*\* Asia Pacific (Mumbai)
-
-
-
-\*\*Project Repository:\*\* \[terraform-aws-infrastructure-automation](https://github.com/Gnaneshambati1/terraform-aws-infrastructure-automation)
-
-
-
-\---
-
-
-
-\*Built as a practical Cloud \& DevOps portfolio project to demonstrate AWS infrastructure provisioning and automation using Terraform.\*
-
+1. Terraform successful deployment output.
+2. AWS VPC and networking resources.
+3. Running EC2 instance.
+4. Custom Nginx website in a browser.
+5. Terraform output values.
+6. Successful GitHub Actions validation.
+
+---
+
+## 12. Skills Demonstrated
+
+- Infrastructure as Code (IaC).
+- AWS infrastructure provisioning.
+- VPC and public networking.
+- EC2 deployment and configuration.
+- Terraform variables, outputs and modules.
+- Remote state and state locking.
+- Linux server configuration.
+- Bash scripting.
+- Nginx web server deployment.
+- Git and GitHub.
+- GitHub Actions automation.
+- Infrastructure security and troubleshooting.
+
+---
+
+## 13. Future Enhancements
+
+- HTTPS configuration.
+- Application Load Balancer.
+- Auto Scaling Group.
+- Private subnet architecture.
+- CloudWatch monitoring and alerts.
+- Automated deployment pipeline.
+- Multi-environment Terraform configuration.
+
+---
+
+## Project Information
+
+| Detail | Value |
+|---|---|
+| Project | Terraform AWS Infrastructure Automation & Deployment |
+| Cloud Platform | Amazon Web Services |
+| IaC Tool | Terraform |
+| Operating System | Ubuntu 24.04 LTS |
+| Web Server | Nginx |
+| Deployment Region | Asia Pacific (Mumbai) |
+| Repository | [GitHub Project](https://github.com/Gnaneshambati1/terraform-aws-infrastructure-automation) |
+
+---
+
+**Built as a practical Cloud & DevOps portfolio project to demonstrate AWS infrastructure provisioning, automation and deployment using Terraform.**
