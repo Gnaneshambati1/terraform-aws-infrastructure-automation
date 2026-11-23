@@ -17,6 +17,11 @@ data "aws_ami" "ubuntu" {
     values = ["hvm"]
   }
 }
+
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
 # Create custom VPC
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
@@ -28,10 +33,12 @@ resource "aws_vpc" "main" {
     Environment = var.environment
   }
 }
+
 # Create public subnet
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidr
+  availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
   tags = {
@@ -39,6 +46,7 @@ resource "aws_subnet" "public" {
     Environment = var.environment
   }
 }
+
 # Create Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
@@ -48,6 +56,7 @@ resource "aws_internet_gateway" "main" {
     Environment = var.environment
   }
 }
+
 # Create public route table
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
@@ -62,11 +71,13 @@ resource "aws_route_table" "public" {
     Environment = var.environment
   }
 }
+
 # Associate route table with public subnet
 resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
 }
+
 # Create security group for web server
 resource "aws_security_group" "web" {
   name        = "${var.project_name}-web-sg"
@@ -94,18 +105,43 @@ resource "aws_security_group" "web" {
     Environment = var.environment
   }
 }
-# Create EC2 web server
 
+# IAM role so the instance can be managed with AWS Systems Manager (no SSH needed)
+resource "aws_iam_role" "ec2_ssm" {
+  name = "${var.project_name}-ec2-ssm-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm_core" {
+  role       = aws_iam_role.ec2_ssm.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "ec2_ssm" {
+  name = "${var.project_name}-ec2-ssm-profile"
+  role = aws_iam_role.ec2_ssm.name
+}
+
+# Create EC2 web server
 module "web_server" {
   source = "./modules/ec2"
 
-  ami_id            = data.aws_ami.ubuntu.id
-  instance_type     = var.instance_type
-  subnet_id         = aws_subnet.public.id
-  security_group_id = aws_security_group.web.id
+  ami_id               = data.aws_ami.ubuntu.id
+  instance_type        = var.instance_type
+  subnet_id            = aws_subnet.public.id
+  security_group_id    = aws_security_group.web.id
+  iam_instance_profile = aws_iam_instance_profile.ec2_ssm.name
 
   user_data_path   = "${path.module}/user_data.sh"
-  root_volume_size = 8
+  root_volume_size = var.root_volume_size
 
   tags = {
     Name        = var.instance_name

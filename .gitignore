@@ -27,3 +27,10 @@ crash.*.log
 # Operating system files
 Thumbs.db
 .DS_Store
+
+state-backup.json
+backend.hcl
+plan.tfplan
+*accessKeys*.csv
+.env
+.aws/

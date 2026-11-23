@@ -1,4 +1,3 @@
-
 variable "ami_id" {
   description = "Ubuntu AMI ID"
   type        = string
@@ -28,6 +27,12 @@ variable "root_volume_size" {
   description = "EC2 root volume size in GB"
   type        = number
   default     = 8
+}
+
+variable "iam_instance_profile" {
+  description = "IAM instance profile name to attach to the instance"
+  type        = string
+  default     = null
 }
 
 variable "tags" {
