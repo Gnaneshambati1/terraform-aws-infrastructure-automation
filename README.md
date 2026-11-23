@@ -2,6 +2,8 @@
 
 **Automating AWS Cloud Infrastructure with Terraform (Infrastructure as Code)**
 
+![Terraform Validation](https://github.com/Gnaneshambati1/terraform-aws-infrastructure-automation/actions/workflows/terraform-validation.yml/badge.svg)
+
 Build • Provision • Automate • Deploy
 
 ---
@@ -148,6 +150,8 @@ terraform-aws-infrastructure-automation/
 ├── .gitignore
 ├── .terraform.lock.hcl
 ├── backend.tf
+├── backend.hcl.example
+├── .gitattributes
 ├── main.tf
 ├── outputs.tf
 ├── provider.tf
@@ -162,12 +166,13 @@ terraform-aws-infrastructure-automation/
 
 | File | Responsibility |
 |---|---|
-| `main.tf` | Defines AWS networking and module configuration |
+| `main.tf` | Defines AWS networking, the SSM IAM role and module configuration |
 | `provider.tf` | Configures the AWS provider |
 | `variables.tf` | Declares input variables |
 | `outputs.tf` | Exposes infrastructure outputs |
 | `versions.tf` | Defines Terraform and provider version constraints |
-| `backend.tf` | Configures the S3 backend |
+| `backend.tf` | Declares the S3 backend (values are supplied at init time) |
+| `backend.hcl.example` | Template for your private, git-ignored `backend.hcl` |
 | `user_data.sh` | Installs and configures Nginx |
 | `terraform.tfvars.example` | Provides sample variable values |
 | `modules/ec2/` | Contains reusable EC2 resources |
@@ -222,9 +227,13 @@ Do not store AWS access keys or secret keys in Terraform files or GitHub.
 
 ### Step 3 — Configure the S3 Backend
 
-Open `backend.tf`.
+Copy the backend template and fill in your own values:
 
-Replace the example bucket name, state key and region with your own S3 backend configuration.
+```powershell
+Copy-Item backend.hcl.example backend.hcl
+```
+
+Edit `backend.hcl` with your own S3 bucket name, state key and region. This file is excluded from Git, so your bucket name is never published.
 
 Do not initialize the project using another person's S3 bucket.
 
@@ -241,8 +250,10 @@ Update the values according to your AWS deployment requirements.
 ### Step 5 — Initialize Terraform
 
 ```powershell
-terraform init
+terraform init -reconfigure "-backend-config=backend.hcl"
 ```
+
+In PowerShell, keep the quotes around the `-backend-config` argument. Without them, PowerShell splits the argument at the dot.
 
 ### Step 6 — Format and Validate
 
@@ -341,12 +352,13 @@ Security measures implemented in this project include:
 
 - Dedicated IAM identity for Terraform operations.
 - No hardcoded AWS credentials.
-- No public SSH ingress rule.
-- HTTP access limited to TCP port 80.
+- No public SSH ingress rule; the instance is managed through AWS Systems Manager Session Manager using a least-privilege instance role.
+- HTTP access limited to TCP port 80 (intentionally open to the internet for this demo; no TLS yet).
 - EC2 Instance Metadata Service Version 2 (IMDSv2) required.
 - Encrypted EC2 root EBS volume.
 - Terraform state stored remotely in Amazon S3.
-- State files and local variable files excluded from Git.
+- State files, local variable files and the backend configuration file (`backend.hcl`) excluded from Git.
+- No credentials or secrets stored in any Terraform file.
 
 ### Production Recommendations
 
@@ -417,6 +429,38 @@ Recommended screenshots:
 - CloudWatch monitoring and alerts.
 - Automated deployment pipeline.
 - Multi-environment Terraform configuration.
+
+---
+
+## 14. Troubleshooting
+
+### The web server does not respond after `terraform apply`
+
+**Symptom:** The EC2 instance is running, but `http://<public-ip>` does not connect.
+
+**Root cause:** The `user_data.sh` file began with a blank line before `#!/bin/bash`. cloud-init only runs user data as a script when the shebang is the very first line, so Nginx was never installed. The file also had stray text at the end that caused a shell syntax error.
+
+**Fix:** Make `#!/bin/bash` the first line, remove the stray text, and store the script with LF line endings (enforced by `.gitattributes`).
+
+### Diagnosing a similar problem
+
+Connect without SSH using Session Manager:
+
+```powershell
+aws ssm start-session --region ap-south-1 --target <instance-id>
+```
+
+Then run:
+
+```bash
+cloud-init status --long
+sudo tail -50 /var/log/user-data.log
+sudo systemctl status nginx --no-pager
+curl -I localhost
+```
+
+- If `curl localhost` works but the browser does not, check the security group, route table and that the URL uses `http://`.
+- If there is no `/var/log/user-data.log`, cloud-init did not run the script. Check the shebang and line endings.
 
 ---
 

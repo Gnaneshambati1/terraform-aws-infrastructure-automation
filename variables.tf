@@ -27,6 +27,7 @@ variable "instance_name" {
   type        = string
   default     = "Enterprise-Web-Server"
 }
+
 variable "vpc_cidr" {
   description = "CIDR range for the enterprise VPC"
   type        = string
@@ -35,4 +36,10 @@ variable "vpc_cidr" {
 variable "public_subnet_cidr" {
   description = "CIDR range for the public subnet"
   type        = string
+}
+
+variable "root_volume_size" {
+  description = "EC2 root volume size in GB"
+  type        = number
+  default     = 8
 }

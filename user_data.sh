@@ -1,12 +1,12 @@
-
 #!/bin/bash
 set -euxo pipefail
+exec > >(tee /var/log/user-data.log) 2>&1
 
+export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y nginx
 
-systemctl enable nginx
-systemctl start nginx
+systemctl enable --now nginx
 
 cat > /var/www/html/index.html <<'HTML'
 <!DOCTYPE html>
@@ -414,22 +414,6 @@ footer {
 </html>
 HTML
 
+nginx -t
 systemctl reload nginx
 systemctl is-active nginx
-</CODEBlock>
-
-**Important:** The code above is your new `user_data.sh` content. Replace the existing file with it; don't paste it into `main.tf`.
-
-## Step 2 — Save and verify
-
-After saving `user_data.sh`, run:
-
-```powershell
-terraform fmt -recursive
-terraform validate
-```
-
-<badge color="success">Expected</badge> `Success! The configuration is valid.`
-
-**Stop here and share the output.** Once validation succeeds, we'll create a new Terraform plan, inspect the EC2 replacement, and deploy the upgraded design. Then we'll test the new website and take your state backup.
-
