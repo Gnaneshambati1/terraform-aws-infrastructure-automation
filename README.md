@@ -400,8 +400,10 @@ Recommended screenshots:
 4. Custom Nginx website in a browser.
 5. Terraform output values.
 6. Successful GitHub Actions validation.
+### Live website (served by Nginx on EC2)
 
----
+<img src="screenshots/website.png" alt="Live website served by Nginx on EC2" width="700">
+
 
 ## 12. Skills Demonstrated
 
