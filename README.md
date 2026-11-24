@@ -403,7 +403,7 @@ Recommended screenshots:
 ### Live website (served by Nginx on EC2)
 
 <img src="screenshots/website.png" alt="Live website served by Nginx on EC2" width="700">
----
+
 
 ## 12. Skills Demonstrated
 
