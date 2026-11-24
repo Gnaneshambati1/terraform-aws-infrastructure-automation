@@ -189,7 +189,7 @@ terraform-aws-infrastructure-automation/
 Before deploying the project, prepare:
 
 - An AWS account.
-- Terraform CLI installed.
+- Terraform CLI 1.10 or newer installed (required for S3 native state locking).
 - AWS CLI installed and configured.
 - Git installed.
 - An IAM identity with the required AWS permissions.
@@ -390,21 +390,11 @@ Review AWS pricing before deployment. Back up Terraform state and inspect the de
 
 ## 11. Project Screenshots
 
-Screenshots will be added after final deployment verification.
-
-Recommended screenshots:
-
-1. Terraform successful deployment output.
-2. AWS VPC and networking resources.
-3. Running EC2 instance.
-4. Custom Nginx website in a browser.
-5. Terraform output values.
-6. Successful GitHub Actions validation.
 ### Live website (served by Nginx on EC2)
 
 <img src="screenshots/website.png" alt="Live website served by Nginx on EC2" width="700">
 
-
+---
 ## 12. Skills Demonstrated
 
 - Infrastructure as Code (IaC).
