@@ -1,4 +1,6 @@
-# Terraform AWS Infrastructure Automation & Deployment
+# AWS Infrastructure Automation & Deployment Using Terraform
+
+### Infrastructure as Code (IaC) | Amazon Web Services | Terraform
 
 **Automating AWS Cloud Infrastructure with Terraform (Infrastructure as Code)**
 
